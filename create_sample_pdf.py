@@ -11,10 +11,10 @@ from datetime import datetime, timedelta
 import os
 
 def create_sample_statement():
-    """Create a sample Chase credit card statement PDF"""
+    """Create a sample HDFC credit card statement PDF"""
     
     # Create PDF
-    filename = "sample_chase_statement.pdf"
+    filename = "sample_HDFC_statement.pdf"
     doc = SimpleDocTemplate(filename, pagesize=letter)
     story = []
     
@@ -58,12 +58,13 @@ def create_sample_statement():
     start_date = (end_date.replace(day=1) - timedelta(days=1)).replace(day=1)
     due_date = end_date + timedelta(days=25)
     
-    # Title
-    title = Paragraph("CHASE", title_style)
+    # Title (include "Bank" to improve issuer detection in some parsers)
+    title = Paragraph("HDFC Bank", title_style)
     story.append(title)
     story.append(Spacer(1, 0.2*inch))
     
     # Account Information - using plain text to ensure extractability
+    # Use USD-dollar symbol and conventional labels so parsers pick up balances reliably
     account_info_data = [
         ['Account Number:', '**** **** **** 4532'],
         ['Statement Period:', f'{start_date.strftime("%m/%d/%Y")} - {end_date.strftime("%m/%d/%Y")}'],
@@ -107,6 +108,7 @@ def create_sample_statement():
     story.append(Spacer(1, 0.1*inch))
     
     # Transactions
+    # Transactions: use USD amounts (parsers in the project expect $-prefixed amounts in examples)
     transactions = [
         ['Date', 'Description', 'Amount'],
         ['01/05/2024', 'AMAZON.COM PURCHASE', '$89.99'],
@@ -116,7 +118,7 @@ def create_sample_statement():
         ['01/18/2024', 'WALMART PURCHASE', '$156.78'],
         ['01/22/2024', 'UBER RIDE', '$23.45'],
         ['01/25/2024', 'TARGET STORE', '$234.56'],
-        ['01/28/2024', 'APPLE STORE', '$1,299.00'],
+        ['01/28/2024', 'APPLE STORE', '$1299.00'],
         ['01/30/2024', 'DOORDASH FOOD', '$67.89'],
         ['01/31/2024', 'WALGREENS PHARMACY', '$45.99'],
     ]
@@ -143,12 +145,13 @@ def create_sample_statement():
     story.append(transaction_table)
     story.append(Spacer(1, 0.3*inch))
     
-    # Summary - ensure total balance is extractable
+    # Summary - ensure total balance and totals are extractable and use consistent labels
+    # Calculate totals to match the transactions above (sum = 1991.38)
     summary_data = [
         ['Previous Balance:', '$1,234.56'],
         ['Payments & Credits:', '-$500.00'],
-        ['Purchases:', '+$1,992.28'],
-        ['Total Charges:', '$1,992.28'],
+        ['Purchases:', '$1,991.38'],
+        ['Total Charges:', '$1,991.38'],
         ['Fees Charged:', '$0.00'],
         ['Interest Charged:', '$0.00'],
         ['', ''],
@@ -175,6 +178,7 @@ def create_sample_statement():
     
     # Footer - add transaction count
     story.append(Spacer(1, 0.2*inch))
+    # Match the number of transaction rows above
     transaction_count_text = Paragraph("Total Transactions: 10", normal_style)
     story.append(transaction_count_text)
     story.append(Spacer(1, 0.2*inch))

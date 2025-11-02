@@ -7,7 +7,7 @@ import {
 import { 
   FiUpload, FiDownload, FiFileText, FiTrendingUp, 
   FiAlertCircle, FiCheckCircle, FiBarChart2, FiDollarSign,
-  FiCalendar, FiCreditCard, FiActivity
+  FiCalendar, FiCreditCard, FiActivity, FiLock, FiX
 } from 'react-icons/fi'
 import CardSwipeLoader from './components/CardSwipeLoader'
 import './App.css'
@@ -54,6 +54,9 @@ function App() {
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'overview' | 'analytics' | 'insights'>('overview')
   const [showLoader, setShowLoader] = useState(true)
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
+  const [pdfPassword, setPdfPassword] = useState('')
+  const [passwordError, setPasswordError] = useState<string | null>(null)
 
   useEffect(() => {
     // Show loader on initial mount
@@ -77,8 +80,8 @@ function App() {
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (e?: React.FormEvent, password?: string) => {
+    if (e) e.preventDefault()
     if (!file) {
       setError('Please select a PDF file')
       return
@@ -90,6 +93,9 @@ function App() {
 
     const formData = new FormData()
     formData.append('file', file)
+    if (password) {
+      formData.append('password', password)
+    }
 
     try {
       const response = await axios.post('/api/parse', formData, {
@@ -99,8 +105,28 @@ function App() {
       })
       setParsedData(response.data)
       setActiveTab('overview')
+      setShowPasswordModal(false)
+      setPdfPassword('')
+      setPasswordError(null)
     } catch (err: any) {
       console.error('Error:', err)
+      
+      // Check if password is required
+      if (err.response?.status === 401 || 
+          err.response?.headers?.['x-requires-password'] === 'true' ||
+          (err.response?.data?.detail && err.response.data.detail.toLowerCase().includes('password'))) {
+        const errorDetail = err.response?.data?.detail || ''
+        if (errorDetail.toLowerCase().includes('incorrect')) {
+          setPasswordError('Incorrect password. Please try again.')
+        } else {
+          setPasswordError(null)
+        }
+        setShowPasswordModal(true)
+        setError(null)
+        setLoading(false)
+        return
+      }
+      
       if (err.response?.data?.detail) {
         setError(err.response.data.detail)
       } else if (err.response?.data?.error) {
@@ -114,6 +140,26 @@ function App() {
       }
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handlePasswordSubmit = () => {
+    if (pdfPassword.trim()) {
+      handleSubmit(undefined, pdfPassword)
+    }
+  }
+
+  const handlePasswordCancel = () => {
+    setShowPasswordModal(false)
+    setPdfPassword('')
+    setError(null)
+    setPasswordError(null)
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPdfPassword(e.target.value)
+    if (passwordError) {
+      setPasswordError(null) // Clear error when user types
     }
   }
 
@@ -208,6 +254,66 @@ function App() {
   return (
     <>
       {showLoader && <CardSwipeLoader onComplete={handleLoaderComplete} />}
+      
+      {/* Password Modal */}
+      {showPasswordModal && (
+        <div className="modal-overlay" onClick={handlePasswordCancel}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>
+                <FiLock />
+                PDF Password Required
+              </h2>
+              <button className="modal-close" onClick={handlePasswordCancel}>
+                <FiX />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>This PDF is password-protected. Please enter the password to continue.</p>
+              <div className="password-input-group">
+                <label htmlFor="pdf-password">Password:</label>
+                <input
+                  id="pdf-password"
+                  type="password"
+                  value={pdfPassword}
+                  onChange={handlePasswordChange}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && pdfPassword.trim()) {
+                      handlePasswordSubmit()
+                    }
+                  }}
+                  placeholder="Enter PDF password"
+                  autoFocus
+                  className={`password-input ${passwordError ? 'error' : ''}`}
+                />
+                {passwordError && (
+                  <div className="password-error">
+                    <FiAlertCircle />
+                    {passwordError}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary" 
+                onClick={handlePasswordCancel}
+                disabled={loading}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary" 
+                onClick={handlePasswordSubmit}
+                disabled={loading || !pdfPassword.trim()}
+              >
+                {loading ? 'Processing...' : 'Unlock & Parse'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       <div className="app">
         <div className="container">
         <header className="header">
@@ -552,7 +658,7 @@ function App() {
           <div className="footer-content">
             <p>✨ Extracts 5 key data points with AI-powered confidence scoring</p>
             <p className="footer-links">
-              Supports: HDFC Bank • ICICI Bank • SBI • Axis Bank • Kotak Mahindra • DCB Bank • Yes Bank • IndusInd Bank
+              Supports: HDFC Bank • ICICI Bank • SBI • Axis Bank • Kotak Mahindra • DCB Bank • Yes Bank • IndusInd Bank • OneCard
             </p>
           </div>
         </footer>
