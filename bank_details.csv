@@ -1,0 +1,9 @@
+Issuer Name,Full Name,Official Website,Support Phone,Detection Keywords,Parser Class,Status
+Chase,Chase Bank,https://www.chase.com,1-800-935-9935,chase;jpmorgan;jp morgan,ChaseParser,Active
+American Express,American Express,https://www.americanexpress.com,1-800-528-4800,american express;amex;americanexpress,AmexParser,Active
+Bank of America,Bank of America,https://www.bankofamerica.com,1-800-732-9194,bank of america;bofa;bankofamerica,BoAParser,Active
+Citi,Citibank,https://www.citi.com,1-800-950-5114,citi;citibank;citigroup,CitiParser,Active
+Capital One,Capital One,https://www.capitalone.com,1-800-955-7070,capital one;capitalone,CapitalOneParser,Active
+
+
+

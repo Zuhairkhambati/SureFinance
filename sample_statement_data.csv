@@ -1,0 +1,9 @@
+Statement ID,Issuer,Card Last 4 Digits,Billing Cycle Start,Billing Cycle End,Payment Due Date,Total Balance,Transaction Count,Total Charges,Extraction Date,Confidence Score
+STMT001,Chase,1234,01/01/2024,01/31/2024,02/15/2024,$1,234.56,25,$987.65,2024-11-02,95%
+STMT002,American Express,5678,02/01/2024,02/29/2024,03/15/2024,$2,500.00,42,$1,850.30,2024-11-02,92%
+STMT003,Bank of America,9012,03/01/2024,03/31/2024,04/15/2024,$890.75,18,$675.20,2024-11-02,88%
+STMT004,Citi,3456,04/01/2024,04/30/2024,05/15/2024,$3,200.00,55,$2,450.00,2024-11-02,90%
+STMT005,Capital One,7890,05/01/2024,05/31/2024,06/15/2024,$1,100.25,30,$950.75,2024-11-02,93%
+
+
+
