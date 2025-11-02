@@ -217,7 +217,7 @@ function App() {
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
-      link.setAttribute('download', 'bank_details.csv')
+      link.setAttribute('download', 'sample_HDFC_statement.pdf')
       document.body.appendChild(link)
       link.click()
       link.remove()
@@ -335,8 +335,8 @@ function App() {
                 </button>
               </>
             )}
-            <button onClick={handleDownloadBankDetails} className="btn-icon" title="Download Bank Details">
-              <FiDownload /> Bank Details
+            <button onClick={handleDownloadBankDetails} className="btn-icon" title="Download sample Bank statement">
+              <FiDownload /> Bank statement
             </button>
           </div>
         </header>
