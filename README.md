@@ -2,7 +2,8 @@
 
 A production-ready, full-stack application that extracts key information from credit card statement PDFs across 5 major credit card issuers. Features AI-powered confidence scoring, interactive analytics, and intelligent financial insights.
 
-## Please visit this link and download the MP4 file to see the video representation. Thank you. 
+## Please visit this link and download the MP4 file to see the video representation.
+https://github.com/Zuhairkhambati/SureFinance/blob/main/SureFinance.mp4
 ## ✨ Features
 
 ### Core Functionality
