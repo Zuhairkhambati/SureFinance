@@ -7,11 +7,11 @@ A production-ready, full-stack application that extracts key information from cr
 ### Core Functionality
 - **PDF Parsing**: Robust text extraction from credit card statement PDFs
 - **Multi-Issuer Support**: Automatically detects and parses statements from:
-  - Chase
-  - American Express
-  - Bank of America
-  - Citi
-  - Capital One
+  - DCB Bank
+  - HDFC Bank
+  - ICICI Bank
+  - SBI Bank
+  - Kotak Mahindra Bank
 - **5 Key Data Points Extracted**:
   1. Card Last 4 Digits
   2. Billing Cycle (Start & End Dates)
@@ -55,56 +55,43 @@ SureFinance/
 
 ### Backend Setup
 
-1. Navigate to the backend directory:
+1. Run the file:
    ```bash
-   cd backend
-   ```
-
-2. Create a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   ```
-
-3. Activate the virtual environment:
-   - On Windows:
-     ```bash
-     venv\Scripts\activate
-     ```
-   - On macOS/Linux:
-     ```bash
-     source venv/bin/activate
-     ```
-
-4. Install dependencies:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-5. Run the backend server:
-   ```bash
-   uvicorn main:app --reload --port 8000
+   ./start-backend.bat
    ```
 
 The API will be available at `http://localhost:8000`
 
 ### Frontend Setup
 
-1. Navigate to the frontend directory:
+1. Run the file:
    ```bash
-   cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+   ./start-frontend.bat
 
 The frontend will be available at `http://localhost:5173`
+
+### Streamlit App 
+
+The easiest way to run the application is using Streamlit:
+
+1. Install dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+2. Run the Streamlit app:
+   ```bash
+   streamlit run streamlit_app.py
+   ```
+
+3. The app will open automatically in your browser at `http://localhost:8501`
+
+**Features:**
+- 📄 Upload and parse credit card statements
+- 📝 Generate sample PDFs for testing
+- 📊 View parsed data with confidence scores
+- 💡 Get payment recommendations
+- 📥 Export data as CSV or JSON
 
 ## Usage
 
@@ -126,7 +113,7 @@ Upload and parse a credit card statement PDF.
 **Response:**
 ```json
 {
-  "detected_issuer": "Chase",
+  "detected_issuer": "DCB",
   "card_last_four_digits": "1234",
   "billing_cycle": {
     "start_date": "01/01/2024",
@@ -148,11 +135,11 @@ Get list of supported credit card issuers.
 ```json
 {
   "supported_issuers": [
-    "Chase",
-    "American Express",
-    "Bank of America",
-    "Citi",
-    "Capital One"
+    "DCB",
+    "HDFC",
+    "SBI",
+    "Kotak Mahindra",
+    "Axis"
   ]
 }
 ```
@@ -195,4 +182,14 @@ Get list of supported credit card issuers.
 ## License
 
 This project is created for assignment purposes.
+
+##Images
+<img width="1898" height="893" alt="image" src="https://github.com/user-attachments/assets/52c96cc7-b630-41c1-9c6d-8e254cca3f81" />
+<img width="1885" height="889" alt="image" src="https://github.com/user-attachments/assets/e8b0a5e7-bd36-45b0-83a0-60bea32cfe41" />
+<img width="1883" height="895" alt="image" src="https://github.com/user-attachments/assets/4056e725-d8f7-4663-834c-a236eda94726" />
+<img width="1890" height="776" alt="image" src="https://github.com/user-attachments/assets/68ee5dbd-ff2a-45ac-9d35-620b93699b31" />
+<img width="1891" height="893" alt="image" src="https://github.com/user-attachments/assets/ede3f2de-012c-406b-9410-101d63214704" />
+<img width="1882" height="892" alt="image" src="https://github.com/user-attachments/assets/b501c627-9fb5-4908-af71-a744ddef1f38" />
+
+
 
