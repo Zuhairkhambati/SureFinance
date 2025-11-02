@@ -75,20 +75,22 @@ class CreditCardParser(ABC):
         return "N/A"
     
     def extract_total_balance(self, text: str) -> str:
-        """Extract total balance/amount due"""
+        """Extract total balance/amount due (supports both ₹ and $)"""
         patterns = [
-            r'total\s+balance[:\s]+\$?([\d,]+\.?\d*)',
-            r'new\s+balance[:\s]+\$?([\d,]+\.?\d*)',
-            r'amount\s+due[:\s]+\$?([\d,]+\.?\d*)',
-            r'total\s+amount\s+due[:\s]+\$?([\d,]+\.?\d*)',
-            r'balance[:\s]+\$?([\d,]+\.?\d*)',
+            r'total\s+balance[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'new\s+balance[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'amount\s+due[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'total\s+amount\s+due[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'outstanding\s+amount[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'balance[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'₹\s*([\d,]+\.?\d*)',
         ]
         
         for pattern in patterns:
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 amount = match.group(1).replace(',', '')
-                return f"${float(amount):,.2f}"
+                return f"₹{float(amount):,.2f}"
         
         return "N/A"
     
@@ -107,10 +109,12 @@ class CreditCardParser(ABC):
                 transaction_count = match.group(1)
                 break
         
-        # Try to extract total charges
+        # Try to extract total charges (supports both ₹ and $)
         charge_patterns = [
-            r'total\s+charges[:\s]+\$?([\d,]+\.?\d*)',
-            r'total\s+purchases[:\s]+\$?([\d,]+\.?\d*)',
+            r'total\s+charges[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'total\s+purchases[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'total\s+spend[:\s]+[₹$]?([\d,]+\.?\d*)',
+            r'₹\s*([\d,]+\.?\d*)',
         ]
         
         total_charges = "N/A"
@@ -118,7 +122,7 @@ class CreditCardParser(ABC):
             match = re.search(pattern, text, re.IGNORECASE)
             if match:
                 amount = match.group(1).replace(',', '')
-                total_charges = f"${float(amount):,.2f}"
+                total_charges = f"₹{float(amount):,.2f}"
                 break
         
         return {
@@ -127,12 +131,12 @@ class CreditCardParser(ABC):
         }
 
 
-class ChaseParser(CreditCardParser):
-    """Parser for Chase credit card statements"""
+class HDFCParser(CreditCardParser):
+    """Parser for HDFC Bank credit card statements"""
     
     def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
         return {
-            "issuer": "Chase",
+            "issuer": "HDFC Bank",
             "card_last_four_digits": self.extract_last_four_digits(text),
             "billing_cycle": self.extract_billing_cycle(text),
             "payment_due_date": self.extract_payment_due_date(text),
@@ -141,12 +145,12 @@ class ChaseParser(CreditCardParser):
         }
 
 
-class AmexParser(CreditCardParser):
-    """Parser for American Express credit card statements"""
+class ICICIParser(CreditCardParser):
+    """Parser for ICICI Bank credit card statements"""
     
     def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
         return {
-            "issuer": "American Express",
+            "issuer": "ICICI Bank",
             "card_last_four_digits": self.extract_last_four_digits(text),
             "billing_cycle": self.extract_billing_cycle(text),
             "payment_due_date": self.extract_payment_due_date(text),
@@ -155,12 +159,12 @@ class AmexParser(CreditCardParser):
         }
 
 
-class BoAParser(CreditCardParser):
-    """Parser for Bank of America credit card statements"""
+class SBIParser(CreditCardParser):
+    """Parser for State Bank of India credit card statements"""
     
     def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
         return {
-            "issuer": "Bank of America",
+            "issuer": "State Bank of India",
             "card_last_four_digits": self.extract_last_four_digits(text),
             "billing_cycle": self.extract_billing_cycle(text),
             "payment_due_date": self.extract_payment_due_date(text),
@@ -169,12 +173,12 @@ class BoAParser(CreditCardParser):
         }
 
 
-class CitiParser(CreditCardParser):
-    """Parser for Citi credit card statements"""
+class AxisParser(CreditCardParser):
+    """Parser for Axis Bank credit card statements"""
     
     def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
         return {
-            "issuer": "Citi",
+            "issuer": "Axis Bank",
             "card_last_four_digits": self.extract_last_four_digits(text),
             "billing_cycle": self.extract_billing_cycle(text),
             "payment_due_date": self.extract_payment_due_date(text),
@@ -183,12 +187,54 @@ class CitiParser(CreditCardParser):
         }
 
 
-class CapitalOneParser(CreditCardParser):
-    """Parser for Capital One credit card statements"""
+class KotakParser(CreditCardParser):
+    """Parser for Kotak Mahindra Bank credit card statements"""
     
     def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
         return {
-            "issuer": "Capital One",
+            "issuer": "Kotak Mahindra Bank",
+            "card_last_four_digits": self.extract_last_four_digits(text),
+            "billing_cycle": self.extract_billing_cycle(text),
+            "payment_due_date": self.extract_payment_due_date(text),
+            "total_balance": self.extract_total_balance(text),
+            "transaction_info": self.extract_transaction_info(text)
+        }
+
+
+class DCBParser(CreditCardParser):
+    """Parser for DCB Bank credit card statements"""
+    
+    def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
+        return {
+            "issuer": "DCB Bank",
+            "card_last_four_digits": self.extract_last_four_digits(text),
+            "billing_cycle": self.extract_billing_cycle(text),
+            "payment_due_date": self.extract_payment_due_date(text),
+            "total_balance": self.extract_total_balance(text),
+            "transaction_info": self.extract_transaction_info(text)
+        }
+
+
+class YesBankParser(CreditCardParser):
+    """Parser for Yes Bank credit card statements"""
+    
+    def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
+        return {
+            "issuer": "Yes Bank",
+            "card_last_four_digits": self.extract_last_four_digits(text),
+            "billing_cycle": self.extract_billing_cycle(text),
+            "payment_due_date": self.extract_payment_due_date(text),
+            "total_balance": self.extract_total_balance(text),
+            "transaction_info": self.extract_transaction_info(text)
+        }
+
+
+class IndusIndParser(CreditCardParser):
+    """Parser for IndusInd Bank credit card statements"""
+    
+    def parse(self, text: str, pdf_bytes: bytes) -> Dict[str, Any]:
+        return {
+            "issuer": "IndusInd Bank",
             "card_last_four_digits": self.extract_last_four_digits(text),
             "billing_cycle": self.extract_billing_cycle(text),
             "payment_due_date": self.extract_payment_due_date(text),

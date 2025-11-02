@@ -8,11 +8,11 @@ import io
 import csv
 import json
 from datetime import datetime
-from parsers import CreditCardParser, ChaseParser, AmexParser, BoAParser, CitiParser, CapitalOneParser
+from parsers import CreditCardParser, HDFCParser, ICICIParser, SBIParser, AxisParser, KotakParser, DCBParser, YesBankParser, IndusIndParser
 
 app = FastAPI(
     title="Credit Card Statement Parser API",
-    description="Advanced PDF parser for extracting and analyzing credit card statement data across 5 major issuers",
+    description="Advanced PDF parser for extracting and analyzing credit card statement data across major Indian banks",
     version="2.0.0",
     docs_url="/docs",
     redoc_url="/redoc"
@@ -29,33 +29,67 @@ app.add_middleware(
 
 # Map parsers to issuer names
 PARSERS: Dict[str, CreditCardParser] = {
-    "chase": ChaseParser(),
-    "american express": AmexParser(),
-    "amex": AmexParser(),
-    "bank of america": BoAParser(),
-    "boa": BoAParser(),
-    "citi": CitiParser(),
-    "citibank": CitiParser(),
-    "capital one": CapitalOneParser(),
-    "capitalone": CapitalOneParser(),
+    "hdfc": HDFCParser(),
+    "hdfc bank": HDFCParser(),
+    "icici": ICICIParser(),
+    "icici bank": ICICIParser(),
+    "sbi": SBIParser(),
+    "state bank of india": SBIParser(),
+    "axis": AxisParser(),
+    "axis bank": AxisParser(),
+    "kotak": KotakParser(),
+    "kotak mahindra": KotakParser(),
+    "kotak mahindra bank": KotakParser(),
+    "dcb": DCBParser(),
+    "dcb bank": DCBParser(),
+    "development credit bank": DCBParser(),
+    "yes bank": YesBankParser(),
+    "yes": YesBankParser(),
+    "indusind": IndusIndParser(),
+    "indusind bank": IndusIndParser(),
 }
 
 
 def detect_issuer(text: str) -> str:
-    """Detect credit card issuer from PDF text"""
+    """Detect credit card issuer from PDF text (Indian banks)"""
     text_lower = text.lower()
     
-    # Check for issuer keywords
-    if any(keyword in text_lower for keyword in ["chase", "jpmorgan", "jp morgan"]):
-        return "chase"
-    elif any(keyword in text_lower for keyword in ["american express", "amex", "americanexpress"]):
-        return "amex"
-    elif any(keyword in text_lower for keyword in ["bank of america", "bofa", "bankofamerica"]):
-        return "boa"
-    elif any(keyword in text_lower for keyword in ["citi", "citibank", "citigroup"]):
-        return "citi"
-    elif any(keyword in text_lower for keyword in ["capital one", "capitalone"]):
-        return "capital one"
+    # Check for issuer keywords (priority order matters - check full names first)
+    # DCB Bank - check for "development credit" first to avoid false matches
+    if "development credit bank" in text_lower or ("dcb bank" in text_lower and "dcb" in text_lower):
+        return "dcb"
+    elif "hdfc bank" in text_lower or ("hdfc" in text_lower and "housing development finance" not in text_lower):
+        return "hdfc"
+    elif "icici bank" in text_lower or "icici" in text_lower:
+        return "icici"
+    elif "state bank of india" in text_lower or ("sbi" in text_lower and "state" in text_lower):
+        return "sbi"
+    elif "axis bank" in text_lower or "axis" in text_lower:
+        return "axis"
+    elif "kotak mahindra bank" in text_lower or "kotak mahindra" in text_lower or "kotak" in text_lower:
+        return "kotak"
+    elif "yes bank" in text_lower:
+        return "yes bank"
+    elif "indusind bank" in text_lower or "indusind" in text_lower:
+        return "indusind"
+    
+    # Fallback: check individual keywords
+    if "dcb" in text_lower:
+        return "dcb"
+    elif "hdfc" in text_lower:
+        return "hdfc"
+    elif "icici" in text_lower:
+        return "icici"
+    elif "sbi" in text_lower:
+        return "sbi"
+    elif "axis" in text_lower:
+        return "axis"
+    elif "kotak" in text_lower:
+        return "kotak"
+    elif "yes" in text_lower and "bank" in text_lower:
+        return "yes bank"
+    elif "indusind" in text_lower:
+        return "indusind"
     
     return "unknown"
 
@@ -75,12 +109,71 @@ async def parse_statement(file: UploadFile = File(...)):
         # Extract text from PDF
         pdf_text = ""
         pdf_bytes = io.BytesIO(contents)
-        with pdfplumber.open(pdf_bytes) as pdf_doc:
-            for page in pdf_doc.pages:
-                pdf_text += page.extract_text() or ""
         
-        if not pdf_text:
-            raise HTTPException(status_code=400, detail="Could not extract text from PDF")
+        # Validate PDF file size
+        if len(contents) == 0:
+            raise HTTPException(status_code=400, detail="PDF file is empty")
+        
+        # Validate PDF header
+        pdf_header = contents[:4]
+        if pdf_header != b'%PDF':
+            raise HTTPException(
+                status_code=400, 
+                detail="Invalid PDF file format. The file does not appear to be a valid PDF."
+            )
+        
+        try:
+            # Try to open PDF with pdfplumber
+            pdf_doc = pdfplumber.open(pdf_bytes)
+            
+            # Check number of pages
+            if len(pdf_doc.pages) == 0:
+                pdf_doc.close()
+                raise HTTPException(
+                    status_code=400, 
+                    detail="PDF has no pages or cannot be read."
+                )
+            
+            # Try to extract text from all pages
+            for page_num, page in enumerate(pdf_doc.pages, 1):
+                try:
+                    page_text = page.extract_text()
+                    if page_text:
+                        pdf_text += page_text + "\n"
+                except Exception as page_error:
+                    # Log but continue with other pages
+                    error_detail = str(page_error) or type(page_error).__name__
+                    print(f"Warning: Could not extract text from page {page_num}: {error_detail}")
+                    continue
+            
+            pdf_doc.close()
+            
+        except pdfplumber.exceptions.PasswordError:
+            raise HTTPException(
+                status_code=400, 
+                detail="PDF is password-protected. Please remove the password before uploading."
+            )
+        except Exception as pdf_error:
+            # Get detailed error information
+            error_type = type(pdf_error).__name__
+            error_msg = str(pdf_error) if pdf_error else "Unknown error occurred"
+            
+            # Provide user-friendly error message
+            if "password" in error_msg.lower() or "encrypted" in error_msg.lower():
+                error_detail = "PDF is password-protected or encrypted. Please remove the password protection."
+            elif "corrupted" in error_msg.lower() or "invalid" in error_msg.lower():
+                error_detail = "PDF appears to be corrupted or invalid. Please verify the file."
+            else:
+                error_detail = f"Error reading PDF ({error_type}): {error_msg}. The PDF might be corrupted, encrypted, or in an unsupported format."
+            
+            print(f"PDF Error - Type: {error_type}, Message: {error_msg}")
+            raise HTTPException(status_code=400, detail=error_detail)
+        
+        if not pdf_text or len(pdf_text.strip()) == 0:
+            raise HTTPException(
+                status_code=400, 
+                detail="Could not extract text from PDF. The PDF might be image-based (scanned) or encrypted. Please ensure the PDF contains selectable text."
+            )
         
         # Detect issuer
         issuer = detect_issuer(pdf_text)
@@ -90,7 +183,7 @@ async def parse_statement(file: UploadFile = File(...)):
                 status_code=400,
                 content={
                     "error": "Could not identify credit card issuer",
-                    "supported_issuers": ["Chase", "American Express", "Bank of America", "Citi", "Capital One"]
+                    "supported_issuers": ["HDFC Bank", "ICICI Bank", "State Bank of India", "Axis Bank", "Kotak Mahindra Bank", "DCB Bank", "Yes Bank", "IndusInd Bank"]
                 }
             )
         
@@ -101,7 +194,18 @@ async def parse_statement(file: UploadFile = File(...)):
         
         # Parse statement
         result = parser.parse(pdf_text, contents)
-        result["detected_issuer"] = issuer.title()
+        # Handle special case for issuer names
+        issuer_display_names = {
+            "hdfc": "HDFC Bank",
+            "icici": "ICICI Bank",
+            "sbi": "State Bank of India",
+            "axis": "Axis Bank",
+            "kotak": "Kotak Mahindra Bank",
+            "dcb": "DCB Bank",
+            "yes bank": "Yes Bank",
+            "indusind": "IndusInd Bank"
+        }
+        result["detected_issuer"] = issuer_display_names.get(issuer, issuer.title())
         
         # Add confidence scores and metadata
         result["confidence_scores"] = calculate_confidence_scores(result)
@@ -124,7 +228,14 @@ async def parse_statement(file: UploadFile = File(...)):
         error_trace = traceback.format_exc()
         print(f"Error parsing PDF: {str(e)}")
         print(f"Traceback: {error_trace}")
-        raise HTTPException(status_code=500, detail=f"Error parsing PDF: {str(e)}")
+        # Return more detailed error for debugging
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": f"Error parsing PDF: {str(e)}",
+                "detail": error_trace.split('\n')[-2] if len(error_trace.split('\n')) > 2 else str(e)
+            }
+        )
 
 
 def calculate_confidence_scores(result: Dict[str, Any]) -> Dict[str, float]:
@@ -182,7 +293,8 @@ def generate_analytics(result: Dict[str, Any]) -> Dict[str, Any]:
     balance_str = result.get("total_balance", "N/A")
     if balance_str != "N/A":
         try:
-            balance = float(balance_str.replace("$", "").replace(",", ""))
+            # Remove currency symbols (₹ or $) and commas
+            balance = float(balance_str.replace("₹", "").replace("$", "").replace(",", "").replace(" ", ""))
             analytics["spending_insights"]["current_balance"] = balance
             
             # Add recommendations based on balance
@@ -242,7 +354,18 @@ async def parse_batch(files: List[UploadFile] = File(...)):
             parser = PARSERS.get(issuer)
             if parser:
                 result = parser.parse(pdf_text, contents)
-                result["detected_issuer"] = issuer.title()
+                # Handle special case for issuer names
+                issuer_display_names = {
+                    "hdfc": "HDFC Bank",
+                    "icici": "ICICI Bank",
+                    "sbi": "State Bank of India",
+                    "axis": "Axis Bank",
+                    "kotak": "Kotak Mahindra Bank",
+                    "dcb": "DCB Bank",
+                    "yes bank": "Yes Bank",
+                    "indusind": "IndusInd Bank"
+                }
+                result["detected_issuer"] = issuer_display_names.get(issuer, issuer.title())
                 result["filename"] = file.filename
                 result["confidence_scores"] = calculate_confidence_scores(result)
                 results.append(result)
@@ -305,11 +428,14 @@ async def export_to_csv(data: Dict[str, Any]):
 async def export_bank_details():
     """Download bank details reference file"""
     bank_data = """Issuer Name,Full Name,Official Website,Support Phone,Detection Keywords,Parser Class,Status
-Chase,Chase Bank,https://www.chase.com,1-800-935-9935,chase;jpmorgan;jp morgan,ChaseParser,Active
-American Express,American Express,https://www.americanexpress.com,1-800-528-4800,american express;amex;americanexpress,AmexParser,Active
-Bank of America,Bank of America,https://www.bankofamerica.com,1-800-732-9194,bank of america;bofa;bankofamerica,BoAParser,Active
-Citi,Citibank,https://www.citi.com,1-800-950-5114,citi;citibank;citigroup,CitiParser,Active
-Capital One,Capital One,https://www.capitalone.com,1-800-955-7070,capital one;capitalone,CapitalOneParser,Active"""
+HDFC Bank,HDFC Bank Limited,https://www.hdfcbank.com,1800-202-6161,hdfc bank;hdfc,HDFCParser,Active
+ICICI Bank,ICICI Bank Limited,https://www.icicibank.com,1800-1080,icici bank;icici,ICICIParser,Active
+State Bank of India,State Bank of India,https://www.sbi.co.in,1800-11-2211,state bank of india;sbi,SBIParser,Active
+Axis Bank,Axis Bank Limited,https://www.axisbank.com,1800-419-5577,axis bank;axis,AxisParser,Active
+Kotak Mahindra Bank,Kotak Mahindra Bank,https://www.kotak.com,1800-266-1234,kotak mahindra bank;kotak,KotakParser,Active
+DCB Bank,DCB Bank Limited,https://www.dcbbank.com,1800-209-5363,dcb bank;dcb;development credit bank,DCBParser,Active
+Yes Bank,Yes Bank Limited,https://www.yesbank.in,1800-1200,yes bank;yes,YesBankParser,Active
+IndusInd Bank,IndusInd Bank Limited,https://www.indusind.com,1800-2100,indusind bank;indusind,IndusIndParser,Active"""
     
     return StreamingResponse(
         io.BytesIO(bank_data.encode()),
@@ -349,11 +475,61 @@ async def get_supported_issuers():
     """Get list of supported credit card issuers"""
     return {
         "supported_issuers": [
-            "Chase",
-            "American Express",
-            "Bank of America",
-            "Citi",
-            "Capital One"
+            "HDFC Bank",
+            "ICICI Bank",
+            "State Bank of India",
+            "Axis Bank",
+            "Kotak Mahindra Bank",
+            "DCB Bank",
+            "Yes Bank",
+            "IndusInd Bank"
         ]
     }
+
+
+@app.post("/api/debug/pdf-info")
+async def debug_pdf_info(file: UploadFile = File(...)):
+    """Debug endpoint to see PDF text extraction and bank detection"""
+    try:
+        contents = await file.read()
+        pdf_text = ""
+        pdf_bytes = io.BytesIO(contents)
+        
+        with pdfplumber.open(pdf_bytes) as pdf_doc:
+            page_count = len(pdf_doc.pages)
+            for i, page in enumerate(pdf_doc.pages):
+                page_text = page.extract_text() or ""
+                pdf_text += page_text + "\n"
+        
+        # Get first 500 characters for preview
+        text_preview = pdf_text[:500] if pdf_text else "No text extracted"
+        
+        # Try to detect issuer
+        issuer = detect_issuer(pdf_text)
+        
+        # Find any bank-related keywords
+        text_lower = pdf_text.lower()
+        found_keywords = []
+        all_keywords = [
+            "hdfc", "icici", "sbi", "state bank", "axis", "kotak", "dcb", 
+            "development credit", "yes bank", "indusind"
+        ]
+        for keyword in all_keywords:
+            if keyword in text_lower:
+                found_keywords.append(keyword)
+        
+        return {
+            "filename": file.filename,
+            "pages": page_count,
+            "text_length": len(pdf_text),
+            "text_preview": text_preview,
+            "detected_issuer": issuer,
+            "found_keywords": found_keywords,
+            "has_text": len(pdf_text.strip()) > 0
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e), "detail": "Failed to analyze PDF"}
+        )
 

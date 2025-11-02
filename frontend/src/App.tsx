@@ -533,7 +533,7 @@ function App() {
                         <div className="insight-item">
                           <div className="insight-label">Current Balance</div>
                           <div className="insight-value">
-                            ${parseFloat(parsedData.analytics.spending_insights.current_balance.toString()).toLocaleString('en-US', {
+                            ₹{parseFloat(parsedData.analytics.spending_insights.current_balance.toString()).toLocaleString('en-IN', {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2
                             })}
@@ -552,7 +552,7 @@ function App() {
           <div className="footer-content">
             <p>✨ Extracts 5 key data points with AI-powered confidence scoring</p>
             <p className="footer-links">
-              Supports: Chase • American Express • Bank of America • Citi • Capital One
+              Supports: HDFC Bank • ICICI Bank • SBI • Axis Bank • Kotak Mahindra • DCB Bank • Yes Bank • IndusInd Bank
             </p>
           </div>
         </footer>
