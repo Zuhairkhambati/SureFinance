@@ -53,6 +53,23 @@ SureFinance/
 
 ## Installation & Setup
 
+### Backend Setup
+
+1. Run the file:
+   ```bash
+   ./start-backend.bat
+   ```
+
+The API will be available at `http://localhost:8000`
+
+### Frontend Setup
+
+1. Run the file:
+   ```bash
+   ./start-frontend.bat
+
+The frontend will be available at `http://localhost:5173`
+
 ### Streamlit App (Recommended for Quick Start)
 
 The easiest way to run the application is using Streamlit:
@@ -75,23 +92,6 @@ The easiest way to run the application is using Streamlit:
 - 📊 View parsed data with confidence scores
 - 💡 Get payment recommendations
 - 📥 Export data as CSV or JSON
-
-### Backend Setup
-
-1. Run the file:
-   ```bash
-   ./start-backend.bat
-   ```
-
-The API will be available at `http://localhost:8000`
-
-### Frontend Setup
-
-1. Run the file:
-   ```bash
-   ./start-frontend.bat
-
-The frontend will be available at `http://localhost:5173`
 
 ## Usage
 
