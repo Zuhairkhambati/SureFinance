@@ -126,7 +126,7 @@ Upload and parse a credit card statement PDF.
 **Response:**
 ```json
 {
-  "detected_issuer": "Chase",
+  "detected_issuer": "DCB",
   "card_last_four_digits": "1234",
   "billing_cycle": {
     "start_date": "01/01/2024",
@@ -148,11 +148,11 @@ Get list of supported credit card issuers.
 ```json
 {
   "supported_issuers": [
-    "Chase",
-    "American Express",
-    "Bank of America",
-    "Citi",
-    "Capital One"
+    "DCB",
+    "HDFC",
+    "SBI",
+    "Kotak Mahindra",
+    "Axis"
   ]
 }
 ```
