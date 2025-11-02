@@ -7,11 +7,11 @@ A production-ready, full-stack application that extracts key information from cr
 ### Core Functionality
 - **PDF Parsing**: Robust text extraction from credit card statement PDFs
 - **Multi-Issuer Support**: Automatically detects and parses statements from:
-  - Chase
-  - American Express
-  - Bank of America
-  - Citi
-  - Capital One
+  - DCB Bank
+  - HDFC Bank
+  - ICICI Bank
+  - SBI Bank
+  - Kotak Mahindra Bank
 - **5 Key Data Points Extracted**:
   1. Card Last 4 Digits
   2. Billing Cycle (Start & End Dates)
@@ -53,56 +53,43 @@ SureFinance/
 
 ## Installation & Setup
 
-### Backend Setup
+### Streamlit App (Recommended for Quick Start)
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+The easiest way to run the application is using Streamlit:
 
-2. Create a virtual environment (recommended):
-   ```bash
-   python -m venv venv
-   ```
-
-3. Activate the virtual environment:
-   - On Windows:
-     ```bash
-     venv\Scripts\activate
-     ```
-   - On macOS/Linux:
-     ```bash
-     source venv/bin/activate
-     ```
-
-4. Install dependencies:
+1. Install dependencies:
    ```bash
    pip install -r requirements.txt
    ```
 
-5. Run the backend server:
+2. Run the Streamlit app:
    ```bash
-   uvicorn main:app --reload --port 8000
+   streamlit run streamlit_app.py
+   ```
+
+3. The app will open automatically in your browser at `http://localhost:8501`
+
+**Features:**
+- 📄 Upload and parse credit card statements
+- 📝 Generate sample PDFs for testing
+- 📊 View parsed data with confidence scores
+- 💡 Get payment recommendations
+- 📥 Export data as CSV or JSON
+
+### Backend Setup
+
+1. Run the file:
+   ```bash
+   ./start-backend.bat
    ```
 
 The API will be available at `http://localhost:8000`
 
 ### Frontend Setup
 
-1. Navigate to the frontend directory:
+1. Run the file:
    ```bash
-   cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm run dev
-   ```
+   ./start-frontend.bat
 
 The frontend will be available at `http://localhost:5173`
 
