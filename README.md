@@ -70,7 +70,7 @@ The API will be available at `http://localhost:8000`
 
 The frontend will be available at `http://localhost:5173`
 
-### Streamlit App (Recommended for Quick Start)
+### Streamlit App 
 
 The easiest way to run the application is using Streamlit:
 
@@ -182,4 +182,14 @@ Get list of supported credit card issuers.
 ## License
 
 This project is created for assignment purposes.
+
+##Images
+<img width="1898" height="893" alt="image" src="https://github.com/user-attachments/assets/52c96cc7-b630-41c1-9c6d-8e254cca3f81" />
+<img width="1885" height="889" alt="image" src="https://github.com/user-attachments/assets/e8b0a5e7-bd36-45b0-83a0-60bea32cfe41" />
+<img width="1883" height="895" alt="image" src="https://github.com/user-attachments/assets/4056e725-d8f7-4663-834c-a236eda94726" />
+<img width="1890" height="776" alt="image" src="https://github.com/user-attachments/assets/68ee5dbd-ff2a-45ac-9d35-620b93699b31" />
+<img width="1891" height="893" alt="image" src="https://github.com/user-attachments/assets/ede3f2de-012c-406b-9410-101d63214704" />
+<img width="1882" height="892" alt="image" src="https://github.com/user-attachments/assets/b501c627-9fb5-4908-af71-a744ddef1f38" />
+
+
 
