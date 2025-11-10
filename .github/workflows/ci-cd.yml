@@ -10,53 +10,62 @@ on:
     branches:
       - main
       - master
-  workflow_dispatch:
+  workflow_dispatch:  # Allows manual triggering
 
 env:
-  REGISTRY: docker.io
-  BACKEND_IMAGE: surefinance-backend
-  FRONTEND_IMAGE: surefinance-frontend
+  DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+  BACKEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/surefinance-backend
+  FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/surefinance-frontend
 
 jobs:
   # Backend CI/CD Job
   backend:
-    name: Build and Deploy Backend
+    name: Build and Push Backend
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: '3.11'
           cache: 'pip'
-          cache-dependency-path: 'backend/requirements.txt'
 
       - name: Install dependencies
         working-directory: ./backend
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          pip install pytest pytest-cov  # Add testing dependencies if needed
+
+      - name: Run tests (if tests exist)
+        working-directory: ./backend
+        run: |
+          # Uncomment when you have tests
+          # pytest --cov=. --cov-report=xml || true
+          echo "Tests would run here"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata for backend
+      - name: Extract metadata (tags, labels) for backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.BACKEND_IMAGE }}
+          images: ${{ env.BACKEND_IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -65,16 +74,17 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta-backend.outputs.tags }}
           labels: ${{ steps.meta-backend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
 
   # Frontend CI/CD Job
   frontend:
-    name: Build and Deploy Frontend
+    name: Build and Push Frontend
     runs-on: ubuntu-latest
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -90,6 +100,13 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
+      - name: Run linter (if configured)
+        working-directory: ./frontend
+        run: |
+          # Uncomment when you have linting
+          # npm run lint || true
+          echo "Linting would run here"
+
       - name: Build frontend
         working-directory: ./frontend
         run: npm run build
@@ -97,21 +114,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        if: github.event_name != 'pull_request'
+      - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata for frontend
+      - name: Extract metadata (tags, labels) for frontend
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ${{ secrets.DOCKER_USERNAME }}/${{ env.FRONTEND_IMAGE }}
+          images: ${{ env.FRONTEND_IMAGE }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -120,18 +138,19 @@ jobs:
         with:
           context: ./frontend
           file: ./frontend/Dockerfile
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
+          cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
 
-  # Deployment Job (runs after both backend and frontend)
+  # Deployment Job
   deploy:
     name: Deploy to Kubernetes
-    needs: [backend, frontend]
     runs-on: ubuntu-latest
+    needs: [backend, frontend]
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
+    
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -141,52 +160,84 @@ jobs:
         with:
           version: 'latest'
 
-      - name: Configure kubectl
+      - name: Configure Kubernetes
         run: |
-          mkdir -p ~/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > ~/.kube/config
-          chmod 600 ~/.kube/config
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
 
-      - name: Update Kubernetes manifests with Docker username and image tags
+      - name: Verify cluster connection
         run: |
-          DOCKER_USER=${{ secrets.DOCKER_USERNAME }}
-          IMAGE_TAG=${{ github.sha }}
-          sed -i "s|DOCKER_USERNAME|$DOCKER_USER|g" k8s/*.yaml
-          sed -i "s|:latest|:$IMAGE_TAG|g" k8s/backend-deployment.yaml
-          sed -i "s|:latest|:$IMAGE_TAG|g" k8s/frontend-deployment.yaml
+          kubectl cluster-info
+          kubectl get nodes
 
-      - name: Create namespace (if needed)
+      - name: Update backend deployment manifest
         run: |
-          kubectl create namespace surefinance --dry-run=client -o yaml | kubectl apply -f - || true
-          # Use default namespace if namespace creation fails
-          kubectl config set-context --current --namespace=default || kubectl config set-context --current --namespace=surefinance || true
+          sed -i "s|zuhairkh|${{ secrets.DOCKER_USERNAME }}|g" k8s/backend-deployment.yaml
+          # Also update if using DOCKER_USERNAME placeholder
+          sed -i "s|DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" k8s/backend-deployment.yaml
 
-      - name: Apply Kubernetes manifests
+      - name: Update frontend deployment manifest
+        run: |
+          sed -i "s|zuhairkh|${{ secrets.DOCKER_USERNAME }}|g" k8s/frontend-deployment.yaml
+          # Also update if using DOCKER_USERNAME placeholder
+          sed -i "s|DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" k8s/frontend-deployment.yaml
+
+      - name: Apply backend resources
         run: |
           kubectl apply -f k8s/backend-deployment.yaml
           kubectl apply -f k8s/backend-service.yaml
+
+      - name: Apply frontend resources
+        run: |
           kubectl apply -f k8s/frontend-deployment.yaml
           kubectl apply -f k8s/frontend-service.yaml
-          kubectl apply -f k8s/ingress.yaml || echo "Ingress may require additional setup (ingress controller may not be installed)"
 
-      - name: Wait for deployment to complete
+      - name: Apply ingress (if exists)
         run: |
-          kubectl rollout status deployment/backend-deployment --timeout=5m || echo "Backend deployment may still be in progress"
-          kubectl rollout status deployment/frontend-deployment --timeout=5m || echo "Frontend deployment may still be in progress"
+          if [ -f k8s/ingress.yaml ]; then
+            kubectl apply -f k8s/ingress.yaml
+          fi
 
-      - name: Get deployment status
+      - name: Wait for backend rollout
         run: |
-          echo "=== Deployments ==="
-          kubectl get deployments
-          echo ""
+          kubectl rollout status deployment/backend-deployment --timeout=5m
+
+      - name: Wait for frontend rollout
+        run: |
+          kubectl rollout status deployment/frontend-deployment --timeout=5m
+
+      - name: Verify deployment
+        run: |
+          echo "=== Backend Deployment Status ==="
+          kubectl get deployment backend-deployment
+          kubectl get pods -l app=surefinance-backend
+          
+          echo "=== Frontend Deployment Status ==="
+          kubectl get deployment frontend-deployment
+          kubectl get pods -l app=surefinance-frontend
+          
           echo "=== Services ==="
           kubectl get services
-          echo ""
-          echo "=== Pods ==="
-          kubectl get pods
-          echo ""
-          echo "=== Ingress ==="
-          kubectl get ingress || echo "Ingress not available (ingress controller may not be installed)"
-          echo ""
-          echo "=== Service Endpoints ==="
-          kubectl get endpoints
+          
+          echo "=== Pod Status ==="
+          kubectl get pods --all-namespaces
+
+      - name: Check pod health
+        run: |
+          echo "=== Backend Pod Logs (last 20 lines) ==="
+          kubectl logs -l app=surefinance-backend --tail=20 || true
+          
+          echo "=== Frontend Pod Logs (last 20 lines) ==="
+          kubectl logs -l app=surefinance-frontend --tail=20 || true
+
+      - name: Deployment Summary
+        if: always()
+        run: |
+          echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Backend" >> $GITHUB_STEP_SUMMARY
+          kubectl get deployment backend-deployment -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' >> $GITHUB_STEP_SUMMARY || echo "Status unknown" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Frontend" >> $GITHUB_STEP_SUMMARY
+          kubectl get deployment frontend-deployment -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' >> $GITHUB_STEP_SUMMARY || echo "Status unknown" >> $GITHUB_STEP_SUMMARY

@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: DOCKER_USERNAME/surefinance-frontend:latest
+        image: zuhairkh/surefinance-frontend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80

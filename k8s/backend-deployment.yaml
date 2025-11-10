@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: backend
-        image: DOCKER_USERNAME/surefinance-backend:latest
+        image: zuhairkh/surefinance-backend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 8000
