@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import axios from 'axios'
 import { 
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, 
-  CartesianGrid, Tooltip, Legend, ResponsiveContainer 
+  CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts'
 import { 
   FiUpload, FiDownload, FiFileText, FiTrendingUp, 
@@ -27,7 +27,7 @@ interface ParsedData {
     total_charges: string
   }
   confidence_scores?: {
-    [key: string]: number
+    [key: string]: number | undefined
     overall?: number
   }
   extraction_metadata?: {
@@ -437,7 +437,7 @@ function App() {
                   </h2>
                   {parsedData.confidence_scores?.overall && (
                     <div className="confidence-badge">
-                      Confidence: {(parsedData.confidence_scores.overall * 100).toFixed(0)}%
+                      Confidence: {(((parsedData.confidence_scores.overall ?? 0) * 100).toFixed(0))}%
                     </div>
                   )}
                 </div>
@@ -472,8 +472,8 @@ function App() {
                     <div className="data-value">{parsedData.card_last_four_digits || 'N/A'}</div>
                     {parsedData.confidence_scores && (
                       <div className="confidence-score">
-                        {(parsedData.confidence_scores.card_last_four_digits * 100).toFixed(0)}% confident
-                      </div>
+                          {(((parsedData.confidence_scores.card_last_four_digits ?? 0) * 100).toFixed(0))}% confident
+                        </div>
                     )}
                   </div>
 
@@ -485,7 +485,7 @@ function App() {
                     <div className="data-value">{parsedData.payment_due_date || 'N/A'}</div>
                     {parsedData.confidence_scores && (
                       <div className="confidence-score">
-                        {(parsedData.confidence_scores.payment_due_date * 100).toFixed(0)}% confident
+                        {(((parsedData.confidence_scores.payment_due_date ?? 0) * 100).toFixed(0))}% confident
                       </div>
                     )}
                   </div>
@@ -498,7 +498,7 @@ function App() {
                     <div className="data-value balance large">{parsedData.total_balance || 'N/A'}</div>
                     {parsedData.confidence_scores && (
                       <div className="confidence-score">
-                        {(parsedData.confidence_scores.total_balance * 100).toFixed(0)}% confident
+                        {(((parsedData.confidence_scores.total_balance ?? 0) * 100).toFixed(0))}% confident
                       </div>
                     )}
                   </div>
@@ -515,7 +515,7 @@ function App() {
                     </div>
                     {parsedData.confidence_scores && (
                       <div className="confidence-score">
-                        {(parsedData.confidence_scores.billing_cycle * 100).toFixed(0)}% confident
+                        {(((parsedData.confidence_scores.billing_cycle ?? 0) * 100).toFixed(0))}% confident
                       </div>
                     )}
                   </div>
@@ -527,20 +527,20 @@ function App() {
                     <div className="data-label">Transaction Information</div>
                     <div className="data-value">
                       {parsedData.transaction_info?.transaction_count !== 'N/A'
-                        ? `Count: ${parsedData.transaction_info.transaction_count}`
+                        ? `Count: ${parsedData.transaction_info?.transaction_count}`
                         : ''}
                       {parsedData.transaction_info?.total_charges !== 'N/A'
-                        ? ` • Total: ${parsedData.transaction_info.total_charges}`
+                        ? ` • Total: ${parsedData.transaction_info?.total_charges}`
                         : ''}
                       {(!parsedData.transaction_info || 
-                         (parsedData.transaction_info.transaction_count === 'N/A' && 
-                          parsedData.transaction_info.total_charges === 'N/A'))
+                         (parsedData.transaction_info?.transaction_count === 'N/A' && 
+                          parsedData.transaction_info?.total_charges === 'N/A'))
                         ? 'N/A'
                         : ''}
                     </div>
                     {parsedData.confidence_scores && (
                       <div className="confidence-score">
-                        {(parsedData.confidence_scores.transaction_info * 100).toFixed(0)}% confident
+                        {(((parsedData.confidence_scores.transaction_info ?? 0) * 100).toFixed(0))}% confident
                       </div>
                     )}
                   </div>
@@ -594,7 +594,7 @@ function App() {
                           fill="#8884d8"
                           dataKey="value"
                         >
-                          {prepareChartData().map((entry, index) => (
+                          {prepareChartData().map((_, index) => (
                             <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                           ))}
                         </Pie>
