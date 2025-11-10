@@ -7,6 +7,7 @@ import re
 import io
 import csv
 import json
+import os
 from datetime import datetime
 from parsers import CreditCardParser, HDFCParser, ICICIParser, SBIParser, AxisParser, KotakParser, DCBParser, YesBankParser, IndusIndParser, OneCardParser
 
@@ -19,9 +20,25 @@ app = FastAPI(
 )
 
 # Configure CORS
+# Get allowed origins from environment variable or use defaults
+allowed_origins_env = os.getenv("ALLOWED_ORIGINS", "")
+if allowed_origins_env:
+    allowed_origins = [origin.strip() for origin in allowed_origins_env.split(",")]
+else:
+    # Default origins for development and Kubernetes
+    allowed_origins = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+        "http://localhost:80",
+        "http://localhost:8080",
+        "http://frontend-service",
+        "http://frontend-service:80",
+        # Add production domains here or via environment variable
+    ]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
