@@ -10,7 +10,7 @@ on:
     branches:
       - main
       - master
-  workflow_dispatch:  # Allows manual triggering
+  workflow_dispatch:
 
 env:
   DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
@@ -18,7 +18,6 @@ env:
   FRONTEND_IMAGE: ${{ secrets.DOCKER_USERNAME }}/surefinance-frontend
 
 jobs:
-  # Backend CI/CD Job
   backend:
     name: Build and Push Backend
     runs-on: ubuntu-latest
@@ -38,14 +37,6 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-cov  # Add testing dependencies if needed
-
-      - name: Run tests (if tests exist)
-        working-directory: ./backend
-        run: |
-          # Uncomment when you have tests
-          # pytest --cov=. --cov-report=xml || true
-          echo "Tests would run here"
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -56,7 +47,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata (tags, labels) for backend
+      - name: Extract metadata for backend
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
@@ -64,8 +55,6 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -80,7 +69,6 @@ jobs:
           cache-from: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.BACKEND_IMAGE }}:buildcache,mode=max
 
-  # Frontend CI/CD Job
   frontend:
     name: Build and Push Frontend
     runs-on: ubuntu-latest
@@ -100,13 +88,6 @@ jobs:
         working-directory: ./frontend
         run: npm ci
 
-      - name: Run linter (if configured)
-        working-directory: ./frontend
-        run: |
-          # Uncomment when you have linting
-          # npm run lint || true
-          echo "Linting would run here"
-
       - name: Build frontend
         working-directory: ./frontend
         run: npm run build
@@ -120,7 +101,7 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Extract metadata (tags, labels) for frontend
+      - name: Extract metadata for frontend
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
@@ -128,8 +109,6 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=sha,prefix={{branch}}-
             type=raw,value=latest,enable={{is_default_branch}}
 
@@ -144,13 +123,12 @@ jobs:
           cache-from: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache
           cache-to: type=registry,ref=${{ env.FRONTEND_IMAGE }}:buildcache,mode=max
 
-  # Deployment Job
   deploy:
     name: Deploy to Kubernetes
     runs-on: ubuntu-latest
     needs: [backend, frontend]
     if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    continue-on-error: true  # Don't fail pipeline if deployment fails
+    continue-on-error: true
     
     steps:
       - name: Checkout code
@@ -160,12 +138,6 @@ jobs:
         id: check-k8s
         run: |
           if [ -z "${{ secrets.KUBE_CONFIG }}" ]; then
-            echo "⚠️  KUBE_CONFIG secret is not set - skipping deployment"
-            echo "✅ Build jobs completed successfully!"
-            echo "📦 Docker images have been built and pushed to Docker Hub"
-            echo ""
-            echo "To enable deployment, set up a cloud Kubernetes cluster and add KUBE_CONFIG secret."
-            echo "See KUBERNETES_SETUP_GUIDE.md for instructions."
             echo "skip_deployment=true" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -182,102 +154,44 @@ jobs:
         id: config-k8s
         run: |
           mkdir -p $HOME/.kube
-          
-          # Decode kubeconfig
           if ! echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config 2>/dev/null; then
-            echo "❌ Error: Failed to decode kubeconfig (invalid base64)"
-            echo "⚠️  Skipping deployment - invalid kubeconfig encoding"
             echo "skip_deployment=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
           chmod 600 $HOME/.kube/config
-          
-          # Validate kubeconfig file was created
           if [ ! -f $HOME/.kube/config ]; then
-            echo "❌ Error: Failed to create kubeconfig file"
-            echo "⚠️  Skipping deployment - invalid kubeconfig"
             echo "skip_deployment=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
-          # Check if kubeconfig contains Docker Desktop local endpoint (case-insensitive)
           if grep -qi "kubernetes.docker.internal" $HOME/.kube/config || grep -qi "127.0.0.1:6443" $HOME/.kube/config || grep -qi "localhost:6443" $HOME/.kube/config; then
-            echo "⚠️  WARNING: Kubeconfig contains local/Docker Desktop endpoint"
-            echo "This endpoint won't work in GitHub Actions cloud runners."
-            echo ""
-            echo "Detected endpoint:"
-            grep -i "server:" $HOME/.kube/config | head -1 || true
-            echo ""
-            echo "Skipping deployment to prevent pipeline failure."
-            echo ""
-            echo "✅ Build jobs completed successfully!"
-            echo "📦 Docker images have been built and pushed to Docker Hub"
-            echo ""
-            echo "To enable deployment:"
-            echo "1. Set up a cloud Kubernetes cluster (EKS, GKE, AKS, or DigitalOcean)"
-            echo "2. Get the kubeconfig from your cloud cluster"
-            echo "3. Update the KUBE_CONFIG secret in GitHub"
-            echo ""
-            echo "See KUBERNETES_SETUP_GUIDE.md for detailed instructions."
             echo "skip_deployment=true" >> $GITHUB_OUTPUT
             exit 0
           fi
-          
-          # Display current context (without sensitive data)
-          echo "Current kubectl context:"
-          kubectl config current-context || true
-          echo ""
-          echo "Available contexts:"
-          kubectl config get-contexts || true
           echo "skip_deployment=false" >> $GITHUB_OUTPUT
 
       - name: Verify cluster connection
         if: steps.config-k8s.outputs.skip_deployment != 'true'
         continue-on-error: true
         run: |
-          echo "Testing cluster connection..."
           if ! kubectl cluster-info 2>&1; then
-            echo ""
-            echo "❌ Failed to connect to cluster"
-            echo "⚠️  Skipping deployment - cluster connection failed"
-            echo ""
-            echo "Common causes:"
-            echo "1. Kubeconfig points to a local/Docker Desktop cluster"
-            echo "2. Cluster endpoint is not accessible from GitHub Actions"
-            echo "3. Invalid or expired credentials"
-            echo ""
-            echo "✅ Build jobs completed successfully!"
-            echo "📦 Docker images have been built and pushed to Docker Hub"
-            echo ""
-            echo "💡 Tip: Remove or update the KUBE_CONFIG secret if you don't want to deploy yet."
             echo "skip_deployment=true" >> $GITHUB_ENV
             exit 0
           fi
-          
           if ! kubectl get nodes 2>&1; then
-            echo ""
-            echo "❌ Failed to get nodes"
-            echo "⚠️  Skipping deployment - cannot access cluster nodes"
-            echo "Check cluster permissions and RBAC settings."
             echo "skip_deployment=true" >> $GITHUB_ENV
             exit 0
           fi
-          
-          echo "✅ Successfully connected to Kubernetes cluster!"
 
       - name: Update backend deployment manifest
         if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           sed -i "s|zuhairkh|${{ secrets.DOCKER_USERNAME }}|g" k8s/backend-deployment.yaml
-          # Also update if using DOCKER_USERNAME placeholder
           sed -i "s|DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" k8s/backend-deployment.yaml
 
       - name: Update frontend deployment manifest
         if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           sed -i "s|zuhairkh|${{ secrets.DOCKER_USERNAME }}|g" k8s/frontend-deployment.yaml
-          # Also update if using DOCKER_USERNAME placeholder
           sed -i "s|DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" k8s/frontend-deployment.yaml
 
       - name: Apply backend resources
@@ -292,7 +206,7 @@ jobs:
           kubectl apply -f k8s/frontend-deployment.yaml
           kubectl apply -f k8s/frontend-service.yaml
 
-      - name: Apply ingress (if exists)
+      - name: Apply ingress
         if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           if [ -f k8s/ingress.yaml ]; then
@@ -312,52 +226,31 @@ jobs:
       - name: Verify deployment
         if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
-          echo "=== Backend Deployment Status ==="
           kubectl get deployment backend-deployment
           kubectl get pods -l app=surefinance-backend
-          
-          echo "=== Frontend Deployment Status ==="
           kubectl get deployment frontend-deployment
           kubectl get pods -l app=surefinance-frontend
-          
-          echo "=== Services ==="
           kubectl get services
-          
-          echo "=== Pod Status ==="
-          kubectl get pods --all-namespaces
-
-      - name: Check pod health
-        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
-        run: |
-          echo "=== Backend Pod Logs (last 20 lines) ==="
-          kubectl logs -l app=surefinance-backend --tail=20 || true
-          
-          echo "=== Frontend Pod Logs (last 20 lines) ==="
-          kubectl logs -l app=surefinance-frontend --tail=20 || true
 
       - name: Deployment Summary
         if: always()
         run: |
           echo "## CI/CD Pipeline Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### ✅ Build Status" >> $GITHUB_STEP_SUMMARY
-          echo "- Backend: Built and pushed to Docker Hub ✅" >> $GITHUB_STEP_SUMMARY
-          echo "- Frontend: Built and pushed to Docker Hub ✅" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Status" >> $GITHUB_STEP_SUMMARY
+          echo "- Backend: Built and pushed to Docker Hub" >> $GITHUB_STEP_SUMMARY
+          echo "- Frontend: Built and pushed to Docker Hub" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           SKIP_DEPLOY="${{ steps.check-k8s.outputs.skip_deployment }}"
           if [ -z "$SKIP_DEPLOY" ]; then
             SKIP_DEPLOY="${{ steps.config-k8s.outputs.skip_deployment }}"
           fi
           if [ "$SKIP_DEPLOY" == "true" ] || [ -z "$SKIP_DEPLOY" ]; then
-            echo "### ⚠️  Deployment Status" >> $GITHUB_STEP_SUMMARY
-            echo "Deployment skipped - Kubernetes cluster not configured or invalid." >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "To enable deployment, see KUBERNETES_SETUP_GUIDE.md" >> $GITHUB_STEP_SUMMARY
+            echo "### Deployment Status" >> $GITHUB_STEP_SUMMARY
+            echo "Deployment skipped - Kubernetes cluster not configured." >> $GITHUB_STEP_SUMMARY
           else
-            echo "### 🚀 Deployment Status" >> $GITHUB_STEP_SUMMARY
-            echo "### Backend" >> $GITHUB_STEP_SUMMARY
+            echo "### Deployment Status" >> $GITHUB_STEP_SUMMARY
             kubectl get deployment backend-deployment -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Status unknown" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
-            echo "### Frontend" >> $GITHUB_STEP_SUMMARY
             kubectl get deployment frontend-deployment -o jsonpath='{.status.conditions[?(@.type=="Available")].status}' >> $GITHUB_STEP_SUMMARY 2>/dev/null || echo "Status unknown" >> $GITHUB_STEP_SUMMARY
           fi
