@@ -147,3 +147,4 @@ kubectl apply -f k8s/
 - Consider using ConfigMaps and Secrets for configuration management
 - Set up monitoring and logging for production deployments
 
+
