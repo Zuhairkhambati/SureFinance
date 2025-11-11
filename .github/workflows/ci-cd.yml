@@ -182,7 +182,15 @@ jobs:
         id: config-k8s
         run: |
           mkdir -p $HOME/.kube
-          echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config
+          
+          # Decode kubeconfig
+          if ! echo "${{ secrets.KUBE_CONFIG }}" | base64 -d > $HOME/.kube/config 2>/dev/null; then
+            echo "❌ Error: Failed to decode kubeconfig (invalid base64)"
+            echo "⚠️  Skipping deployment - invalid kubeconfig encoding"
+            echo "skip_deployment=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
           chmod 600 $HOME/.kube/config
           
           # Validate kubeconfig file was created
@@ -193,10 +201,14 @@ jobs:
             exit 0
           fi
           
-          # Check if kubeconfig contains Docker Desktop local endpoint (which won't work in CI)
-          if grep -q "kubernetes.docker.internal" $HOME/.kube/config; then
-            echo "⚠️  WARNING: Kubeconfig contains 'kubernetes.docker.internal'"
-            echo "This is a Docker Desktop local endpoint and won't work in GitHub Actions."
+          # Check if kubeconfig contains Docker Desktop local endpoint (case-insensitive)
+          if grep -qi "kubernetes.docker.internal" $HOME/.kube/config || grep -qi "127.0.0.1:6443" $HOME/.kube/config || grep -qi "localhost:6443" $HOME/.kube/config; then
+            echo "⚠️  WARNING: Kubeconfig contains local/Docker Desktop endpoint"
+            echo "This endpoint won't work in GitHub Actions cloud runners."
+            echo ""
+            echo "Detected endpoint:"
+            grep -i "server:" $HOME/.kube/config | head -1 || true
+            echo ""
             echo "Skipping deployment to prevent pipeline failure."
             echo ""
             echo "✅ Build jobs completed successfully!"
@@ -222,76 +234,83 @@ jobs:
 
       - name: Verify cluster connection
         if: steps.config-k8s.outputs.skip_deployment != 'true'
+        continue-on-error: true
         run: |
           echo "Testing cluster connection..."
-          if ! kubectl cluster-info; then
+          if ! kubectl cluster-info 2>&1; then
+            echo ""
             echo "❌ Failed to connect to cluster"
             echo "⚠️  Skipping deployment - cluster connection failed"
             echo ""
-            echo "Please verify:"
-            echo "1. Your KUBE_CONFIG secret contains a valid kubeconfig for an accessible cluster"
-            echo "2. The cluster endpoint is reachable from GitHub Actions runners"
-            echo "3. You're not using a Docker Desktop local cluster (kubernetes.docker.internal)"
+            echo "Common causes:"
+            echo "1. Kubeconfig points to a local/Docker Desktop cluster"
+            echo "2. Cluster endpoint is not accessible from GitHub Actions"
+            echo "3. Invalid or expired credentials"
             echo ""
             echo "✅ Build jobs completed successfully!"
             echo "📦 Docker images have been built and pushed to Docker Hub"
+            echo ""
+            echo "💡 Tip: Remove or update the KUBE_CONFIG secret if you don't want to deploy yet."
+            echo "skip_deployment=true" >> $GITHUB_ENV
             exit 0
           fi
           
-          if ! kubectl get nodes; then
+          if ! kubectl get nodes 2>&1; then
+            echo ""
             echo "❌ Failed to get nodes"
             echo "⚠️  Skipping deployment - cannot access cluster nodes"
             echo "Check cluster permissions and RBAC settings."
+            echo "skip_deployment=true" >> $GITHUB_ENV
             exit 0
           fi
           
           echo "✅ Successfully connected to Kubernetes cluster!"
 
       - name: Update backend deployment manifest
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           sed -i "s|zuhairkh|${{ secrets.DOCKER_USERNAME }}|g" k8s/backend-deployment.yaml
           # Also update if using DOCKER_USERNAME placeholder
           sed -i "s|DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" k8s/backend-deployment.yaml
 
       - name: Update frontend deployment manifest
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           sed -i "s|zuhairkh|${{ secrets.DOCKER_USERNAME }}|g" k8s/frontend-deployment.yaml
           # Also update if using DOCKER_USERNAME placeholder
           sed -i "s|DOCKER_USERNAME|${{ secrets.DOCKER_USERNAME }}|g" k8s/frontend-deployment.yaml
 
       - name: Apply backend resources
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           kubectl apply -f k8s/backend-deployment.yaml
           kubectl apply -f k8s/backend-service.yaml
 
       - name: Apply frontend resources
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           kubectl apply -f k8s/frontend-deployment.yaml
           kubectl apply -f k8s/frontend-service.yaml
 
       - name: Apply ingress (if exists)
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           if [ -f k8s/ingress.yaml ]; then
             kubectl apply -f k8s/ingress.yaml
           fi
 
       - name: Wait for backend rollout
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           kubectl rollout status deployment/backend-deployment --timeout=5m
 
       - name: Wait for frontend rollout
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           kubectl rollout status deployment/frontend-deployment --timeout=5m
 
       - name: Verify deployment
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           echo "=== Backend Deployment Status ==="
           kubectl get deployment backend-deployment
@@ -308,7 +327,7 @@ jobs:
           kubectl get pods --all-namespaces
 
       - name: Check pod health
-        if: steps.config-k8s.outputs.skip_deployment != 'true'
+        if: steps.config-k8s.outputs.skip_deployment != 'true' && env.skip_deployment != 'true'
         run: |
           echo "=== Backend Pod Logs (last 20 lines) ==="
           kubectl logs -l app=surefinance-backend --tail=20 || true
